@@ -10,7 +10,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-Reads deposit metadata from `SCORE_14050324_14050329.csv`, then generates one row per deposit for each monthly period from the day after the source `LAST_DATE` through today (Jalali calendar).
+Reads deposit metadata from `SCORE_14050324_14050329.csv`, then generates one row per deposit for each `LAST_DATE` from the day after the source `LAST_DATE` through today (Jalali calendar). `FIRST_DATE` is copied unchanged from the source row.
 
 ```bash
 python generate_score_data.py
