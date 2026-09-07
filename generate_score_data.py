@@ -38,10 +38,8 @@ class DepositRecord:
     main_customer_national_code: str
     main_customer_name: str
     is_real: str
-    first_date: str
     deposit_type_id: str
     base_score: int
-    last_date: str
 
 
 def parse_jalali(date_str: str) -> jdatetime.date:
@@ -53,8 +51,9 @@ def format_jalali(date_value: jdatetime.date) -> str:
     return f"{date_value.year:04d}/{date_value.month:02d}/{date_value.day:02d}"
 
 
-def load_deposits(source_csv: Path) -> list[DepositRecord]:
+def load_deposits(source_csv: Path) -> tuple[list[DepositRecord], str]:
     deposits: dict[str, DepositRecord] = {}
+    max_last_date = ""
 
     with source_csv.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -64,8 +63,7 @@ def load_deposits(source_csv: Path) -> list[DepositRecord]:
 
         for row in reader:
             deposit_number = row["DEPOSIT_NUMBER"]
-            existing = deposits.get(deposit_number)
-            if existing is None or row["LAST_DATE"] > existing.last_date:
+            if deposit_number not in deposits:
                 deposits[deposit_number] = DepositRecord(
                     open_date=row["OPEN_DATE"],
                     status_name=row["STATUS_NAME"],
@@ -74,16 +72,20 @@ def load_deposits(source_csv: Path) -> list[DepositRecord]:
                     main_customer_national_code=row["MAIN_CUSTOMER_NATIONAL_CODE"],
                     main_customer_name=row["MAIN_CUSTOMER_NAME"],
                     is_real=row["IS_REAL"],
-                    first_date=row["FIRST_DATE"],
                     deposit_type_id=row["DEPOSIT_TYPE_ID"],
                     base_score=int(row["SCORE_MONTH_TRUNC"]),
-                    last_date=row["LAST_DATE"],
                 )
+
+            if row["LAST_DATE"] > max_last_date:
+                max_last_date = row["LAST_DATE"]
 
     if not deposits:
         raise ValueError(f"No deposit rows found in {source_csv}")
 
-    return list(deposits.values())
+    if not max_last_date:
+        raise ValueError("Could not determine LAST_DATE from source CSV")
+
+    return list(deposits.values()), max_last_date
 
 
 def build_last_dates(start_date: jdatetime.date, end_date: jdatetime.date) -> list[str]:
@@ -127,8 +129,9 @@ def write_rows(
         writer.writeheader()
 
         row_count = 0
-        for last_date in last_dates:
-            for deposit in deposits:
+        sorted_deposits = sorted(deposits, key=lambda deposit: deposit.deposit_number)
+        for deposit in sorted_deposits:
+            for last_date in last_dates:
                 writer.writerow(
                     {
                         "OPEN_DATE": deposit.open_date,
@@ -139,7 +142,7 @@ def write_rows(
                         "MAIN_CUSTOMER_NAME": deposit.main_customer_name,
                         "IS_REAL": deposit.is_real,
                         "LAST_DATE": last_date,
-                        "FIRST_DATE": deposit.first_date,
+                        "FIRST_DATE": last_date,
                         "DEPOSIT_TYPE_ID": deposit.deposit_type_id,
                         "SCORE_MONTH_TRUNC": generate_score(deposit, rng),
                     }
@@ -197,14 +200,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Input file not found: {source_csv}", file=sys.stderr)
         return 1
 
-    deposits = load_deposits(source_csv)
+    deposits, max_last_date = load_deposits(source_csv)
     end_date = (
         parse_jalali(args.end_date)
         if args.end_date
         else jdatetime.date.today()
     )
 
-    source_last_date = max(parse_jalali(deposit.last_date) for deposit in deposits)
+    source_last_date = parse_jalali(max_last_date)
     start_date = source_last_date + jdatetime.timedelta(days=1)
     if start_date > end_date:
         print(
