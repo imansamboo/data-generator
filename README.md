@@ -28,3 +28,19 @@ Example:
 ```bash
 python generate_score_data.py --seed 123 --output generated_scores.csv
 ```
+
+## Gregorian / Shamsi calendar CSV
+
+Generate a date mapping CSV with quoted columns `GregorianDate` and `ShamsiDate`:
+
+```bash
+python generate_date_calendar.py
+```
+
+Defaults: `2000-01-01` through `2100-12-29` → `calendar_2000-01-01_2100-12-29.csv`
+
+Optional arguments:
+
+- `--start YYYY-MM-DD` — first Gregorian date
+- `--end YYYY-MM-DD` — last Gregorian date
+- `--output PATH` — output CSV path
